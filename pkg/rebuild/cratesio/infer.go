@@ -59,11 +59,9 @@ func (Rebuilder) CloneRepo(ctx context.Context, t rebuild.Target, repoURI string
 	switch err {
 	case nil:
 	case transport.ErrAuthenticationRequired:
-		err = errors.Errorf("repo invalid or private [repo=%s]", r.URI)
-		return
+		return r, errors.Errorf("repo invalid or private [repo=%s]", r.URI)
 	default:
-		err = errors.Wrapf(err, "clone failed [repo=%s]", r.URI)
-		return
+		return r, errors.Wrapf(err, "clone failed [repo=%s]", r.URI)
 	}
 	// Do Cargo.toml search.
 	head, _ := r.Repository.Head()
@@ -83,7 +81,7 @@ func (Rebuilder) CloneRepo(ctx context.Context, t rebuild.Target, repoURI string
 			log.Printf("Cargo.toml version heuristic failed [pkg=%s,repo=%s]: %s\n", t.Package, r.URI, err.Error())
 		}
 	}
-	return
+	return r, err
 }
 
 func inferRefAndDir(t rebuild.Target, vmeta *reg.CrateVersion, crateBytes []byte, rcfg *rebuild.RepoConfig) (ref, dir string, err error) {

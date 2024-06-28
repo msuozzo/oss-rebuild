@@ -69,13 +69,12 @@ func RebuildOne(ctx context.Context, r Rebuilder, input Input, mux RegistryMux, 
 		// If the input was a hint, include it in inference.
 		if lh.Ref == "" && lh.Dir != "" {
 			// TODO: For each ecosystem, allow ref inference to occur and validate dir.
-			err = errors.New("Dir without Ref is not yet supported.")
-			return
+			return verdict, nil, errors.New("Dir without Ref is not yet supported.")
 		}
 		log.Printf("[%s] LocationHint provided: %v, running inference...\n", t.Package, *lh)
 		verdict.Strategy, err = r.InferStrategy(ctx, t, mux, rcfg, lh)
 		if err != nil {
-			return
+			return verdict, nil, err
 		}
 	} else if input.Strategy != nil {
 		// If the input was a full strategy, skip inference.
@@ -86,7 +85,7 @@ func RebuildOne(ctx context.Context, r Rebuilder, input Input, mux RegistryMux, 
 		log.Printf("[%s] No strategy provided, running inference...\n", t.Package)
 		verdict.Strategy, err = r.InferStrategy(ctx, t, mux, rcfg, nil)
 		if err != nil {
-			return
+			return verdict, nil, err
 		}
 	}
 	verdict.Timings.Infer = time.Since(inferenceStart)
@@ -96,8 +95,7 @@ func RebuildOne(ctx context.Context, r Rebuilder, input Input, mux RegistryMux, 
 	}
 	inst, err := verdict.Strategy.GenerateFor(t, rbenv)
 	if err != nil {
-		err = errors.Wrap(err, "failed to generate strategy")
-		return
+		return verdict, nil, errors.Wrap(err, "failed to generate strategy")
 	}
 	buildStart := time.Now()
 	err = r.Rebuild(ctx, t, inst, fs)
@@ -109,11 +107,9 @@ func RebuildOne(ctx context.Context, r Rebuilder, input Input, mux RegistryMux, 
 	_, err = fs.Stat(rbPath)
 	if err != nil {
 		if errors.Is(err, iofs.ErrNotExist) {
-			err = errors.Wrap(err, "failed to locate artifact")
-			return
+			return verdict, nil, errors.Wrap(err, "failed to locate artifact")
 		}
-		err = errors.Wrapf(err, "failed to stat artifact")
-		return
+		return verdict, nil, errors.Wrapf(err, "failed to stat artifact")
 	}
 	rb, up, err := Stabilize(ctx, t, mux, rbPath, fs, assets)
 	if err != nil {

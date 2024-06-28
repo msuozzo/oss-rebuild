@@ -93,8 +93,7 @@ var _ Registry = &HTTPRegistry{}
 func (r HTTPRegistry) PackageVersion(ctx context.Context, pkg, version string) (result *MavenVersion, err error) {
 	g, a, found := strings.Cut(pkg, ":")
 	if !found {
-		err = errors.New("package identifier not of form 'group:artifact'")
-		return
+		return nil, errors.New("package identifier not of form 'group:artifact'")
 	}
 
 	pathUrl := registryURL.ResolveReference(registrySearchPathURL)
@@ -117,16 +116,16 @@ func (r HTTPRegistry) PackageVersion(ctx context.Context, pkg, version string) (
 	err = json.NewDecoder(resp.Body).Decode(&s)
 	results := s.Response.Docs
 	if err != nil {
-		return
+		return nil, err
 	} else if len(results) == 0 {
-		err = errors.New("not found")
+		return nil, errors.New("not found")
 	} else if len(results) > 1 {
-		err = errors.New("multiple matches found")
+		return nil, errors.New("multiple matches found")
 	} else {
 		result = &results[0]
 	}
 	result.Published = time.UnixMilli(result.PublishedMilli)
-	return
+	return result, nil
 }
 
 // PackageMetadata returns the metadata for a Maven package.
