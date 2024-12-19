@@ -44,6 +44,13 @@ provider "google-beta" {
   zone    = "us-central1-c"
 }
 
+provider "docker" {
+  project = var.project
+  region  = "us-central1"
+  zone    = "us-central1-c"
+}
+
+
 ## IAM resources
 
 resource "google_service_account" "orchestrator" {
@@ -224,6 +231,61 @@ data "google_container_registry_image" "api" {
   name = "api"
   tag = "latest"
   depends_on = [google_container_registry.registry]
+}
+
+resource "docker_image" "api" {
+  name = "api"
+  build {
+    context = "."
+    file = "build/package/Dockerfile.api"
+    build_arg = {
+      BINARY: "api"
+    }
+  }
+}
+
+resource "docker_image" "rebuilder" {
+  name = "rebuilder"
+  build {
+    context = "."
+    file = "build/package/Dockerfile.rebuilder"
+    build_arg = {
+      BINARY: "rebuilder"
+    }
+  }
+}
+
+resource "docker_image" "inference" {
+  name = "inference"
+  build {
+    context = "."
+    file = "build/package/Dockerfile.inference"
+    build_arg = {
+      BINARY: "inference"
+    }
+  }
+}
+
+resource "docker_image" "git-cache" {
+  name = "git_cache"
+  build {
+    context = "."
+    file = "build/package/Dockerfile.git_cache"
+    build_arg = {
+      BINARY: "git_cache"
+    }
+  }
+}
+
+resource "docker_image" "gateway" {
+  name = "gateway"
+  build {
+    context = "."
+    file = "build/package/Dockerfile.gateway"
+    build_arg = {
+      BINARY: "gateway"
+    }
+  }
 }
 
 ## Compute resources
