@@ -23,7 +23,12 @@ type Step struct {
 }
 
 func resolveTemplate(buf *bytes.Buffer, tmpl string, data any) error {
-	t, err := template.New("").Option("missingkey=zero").Parse(tmpl)
+	t, err := template.New("").Option("missingkey=zero").Funcs(template.FuncMap{
+		"join":     strings.Join,
+		"split":    strings.Split,
+		"fromJSON": FromJSON,
+		"toJSON":   ToJSON,
+	}).Parse(tmpl)
 	if err != nil {
 		return errors.Wrap(err, "parsing template")
 	}
