@@ -350,13 +350,13 @@ func TestFragment_Join(t *testing.T) {
 			name: "empty_commands",
 			f1:   Fragment{},
 			f2:   Fragment{},
-			want: Fragment{Script: "\n"},
+			want: Fragment{},
 		},
 		{
 			name: "one_empty_script",
 			f1:   Fragment{Script: "echo foo"},
 			f2:   Fragment{},
-			want: Fragment{Script: "echo foo\n"},
+			want: Fragment{Script: "echo foo"},
 		},
 		{
 			name: "merge_scripts_and_deps",
