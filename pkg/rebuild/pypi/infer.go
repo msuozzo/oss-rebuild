@@ -309,14 +309,14 @@ func (Rebuilder) InferStrategy(ctx context.Context, t rebuild.Target, mux rebuil
 			}
 		}
 	}
-	return &PureWheelBuild{
+	return (&PureWheelBuild{
 		Location: rebuild.Location{
 			Repo: rcfg.URI,
 			Dir:  dir,
 			Ref:  ref,
 		},
 		Requirements: reqs,
-	}, nil
+	}).ToWorkflow(), nil
 }
 
 var bdistWheelPat = re.MustCompile(`^Generator: bdist_wheel \(([\d\.]+)\)`)

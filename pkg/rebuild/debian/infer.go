@@ -95,5 +95,5 @@ func (Rebuilder) InferStrategy(ctx context.Context, t rebuild.Target, mux rebuil
 	if (p.Orig.URL == "" || p.Debian.URL == "") && (p.Native.URL == "") {
 		return nil, errors.Errorf("failed to find source files in the .dsc file: %s", p.DSC.URL)
 	}
-	return &p, nil
+	return (&p).ToWorkflow(), nil
 }

@@ -246,7 +246,7 @@ func (Rebuilder) InferStrategy(ctx context.Context, t rebuild.Target, mux rebuil
 			}
 			// TODO: detect and install pnpm
 			// TODO: detect and install yarn
-			return &NPMCustomBuild{
+			return (&NPMCustomBuild{
 				NPMVersion:      npmv,
 				NodeVersion:     vmeta.NodeVersion,
 				VersionOverride: override,
@@ -257,10 +257,10 @@ func (Rebuilder) InferStrategy(ctx context.Context, t rebuild.Target, mux rebuil
 					Ref:  ref,
 					Dir:  dir,
 				},
-			}, nil
+			}).ToWorkflow(), nil
 		}
 	}
-	return &NPMPackBuild{
+	return (&NPMPackBuild{
 		NPMVersion:      npmv,
 		VersionOverride: override,
 		Location: rebuild.Location{
@@ -268,7 +268,7 @@ func (Rebuilder) InferStrategy(ctx context.Context, t rebuild.Target, mux rebuil
 			Ref:  ref,
 			Dir:  dir,
 		},
-	}, nil
+	}).ToWorkflow(), nil
 }
 
 // findAndValidatePackageJSON ensures the package config has the expected name and version,
