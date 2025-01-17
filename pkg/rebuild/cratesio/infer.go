@@ -253,7 +253,7 @@ func (Rebuilder) InferStrategy(ctx context.Context, t rebuild.Target, mux rebuil
 			return nil, errors.New("rust version heuristic failed")
 		}
 	}
-	return &CratesIOCargoPackage{
+	return (&CratesIOCargoPackage{
 		Location: rebuild.Location{
 			Repo: rcfg.URI,
 			Ref:  ref,
@@ -261,7 +261,7 @@ func (Rebuilder) InferStrategy(ctx context.Context, t rebuild.Target, mux rebuil
 		},
 		RustVersion:      rustVersion,
 		ExplicitLockfile: lock,
-	}, nil
+	}).ToWorkflow(), nil
 }
 
 func getFileFromCrate(crate io.Reader, path string) ([]byte, error) {
