@@ -51,7 +51,9 @@ apt update
 apt install -y build-dep1 build-dep2`,
 				Build: `set -eux
 cd */
-debuild -b -uc -us`,
+debuild -b -uc -us
+expected=$(echo 'pkg_1.0-1_amd64.deb' | sed -E 's/\+b[0-9]+(_[^_]+\.deb)$/\1/g')
+mv /src/$expected /src/pkg_1.0-1_amd64.deb`,
 				SystemDeps: []string{"wget", "git", "build-essential", "fakeroot", "devscripts"},
 				OutputPath: "pkg_1.0-1_amd64.deb",
 			},
@@ -87,7 +89,9 @@ apt update
 apt install -y build-dep1`,
 				Build: `set -eux
 cd */
-debuild -b -uc -us`,
+debuild -b -uc -us
+expected=$(echo 'pkg_1.0_amd64.deb' | sed -E 's/\+b[0-9]+(_[^_]+\.deb)$/\1/g')
+mv /src/$expected /src/pkg_1.0_amd64.deb`,
 				SystemDeps: []string{"wget", "git", "build-essential", "fakeroot", "devscripts"},
 				OutputPath: "pkg_1.0_amd64.deb",
 			},
@@ -124,11 +128,12 @@ wget https://example.com/pkg_1.0-1.debian.tar.xz
 dpkg-source -x --no-check $(basename "https://example.com/pkg_1.0-1.dsc")`,
 				Deps: `set -eux
 apt update
-apt install -y `,
+apt install -y`,
 				Build: `set -eux
 cd */
 debuild -b -uc -us
-mv /src/pkg_1.0-1_amd64.deb /src/pkg_1.0-1+b1_amd64.deb`,
+expected=$(echo 'pkg_1.0-1+b1_amd64.deb' | sed -E 's/\+b[0-9]+(_[^_]+\.deb)$/\1/g')
+mv /src/$expected /src/pkg_1.0-1+b1_amd64.deb`,
 				SystemDeps: []string{"wget", "git", "build-essential", "fakeroot", "devscripts"},
 				OutputPath: "pkg_1.0-1+b1_amd64.deb",
 			},
