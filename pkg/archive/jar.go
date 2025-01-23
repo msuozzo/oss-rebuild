@@ -61,3 +61,16 @@ var StableJARBuildMetadata = ZipEntryStabilizer{
 		zf.SetContent(buf.Bytes())
 	},
 }
+
+var StableJARSignatureFiles = ZipEntryStabilizer{
+	Name: "jar-signatures",
+	Func: func(zf *MutableZipFile) {
+		if !strings.HasSuffix(zf.Name, ".SF") &&
+			!strings.HasSuffix(zf.Name, ".RSA") &&
+			!strings.HasSuffix(zf.Name, ".DSA") {
+			return
+		}
+		// Zero out signature files
+		zf.SetContent([]byte{})
+	},
+}
