@@ -170,3 +170,16 @@ func splitPreservingQuotes(s string, sep rune) []string {
 	}
 	return result
 }
+
+var StableJARSignatureFiles = ZipEntryStabilizer{
+	Name: "jar-signatures",
+	Func: func(zf *MutableZipFile) {
+		if !strings.HasSuffix(zf.Name, ".SF") &&
+			!strings.HasSuffix(zf.Name, ".RSA") &&
+			!strings.HasSuffix(zf.Name, ".DSA") {
+			return
+		}
+		// Zero out signature files
+		zf.SetContent([]byte{})
+	},
+}
