@@ -138,9 +138,26 @@ func RebuildPackageInit(ctx context.Context) (*apiservice.RebuildPackageDeps, er
 	d.BuildServiceAccount = *buildRemoteIdentity
 	d.UtilPrebuildBucket = *prebuildBucket
 	d.BuildLogsBucket = *logsBucket
-	serviceRepo, err := uri.CanonicalizeRepoURI(BuildRepo)
-	if err != nil {
-		return nil, errors.Wrap(err, "canonicalizing service repo")
+	var serviceRepo string
+	if BuildRepo == "" {
+		return nil, errors.New("empty service repo")
+	}
+	if repoURI, err := url.Parse(BuildRepo); err != nil {
+		return nil, errors.Wrap(err, "parsing service repo URI")
+	} else {
+		switch repoURI.Scheme {
+		case "file":
+			// Redact file:// schemes
+			serviceRepo = ""
+		case "http", "https":
+			if canonicalized, err := uri.CanonicalizeRepoURI(BuildRepo); err != nil {
+				serviceRepo = repoURI.String()
+			} else {
+				serviceRepo = canonicalized
+			}
+		default:
+			return nil, errors.Errorf("unsupported scheme for service repo '%s'", BuildRepo)
+		}
 	}
 	if !goPseudoVersion.MatchString(BuildVersion) {
 		return nil, errors.New("service version must be a go mod pseudo-version: https://go.dev/ref/mod#pseudo-versions")
