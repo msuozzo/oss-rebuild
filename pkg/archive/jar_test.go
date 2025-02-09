@@ -173,3 +173,166 @@ func TestStableJARBuildMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestStableJARSignatureFiles(t *testing.T) {
+	testCases := []struct {
+		test     string
+		input    []*ZipEntry
+		expected []*ZipEntry
+	}{
+		{
+			test: "no_signature_files",
+			input: []*ZipEntry{
+				{&zip.FileHeader{Name: "META-INF/MANIFEST.MF"}, []byte("Manifest-Version: 1.0\r\n\r\n")},
+				{&zip.FileHeader{Name: "com/example/Main.class"}, []byte("class data")},
+			},
+			expected: []*ZipEntry{
+				{&zip.FileHeader{Name: "META-INF/MANIFEST.MF"}, []byte("Manifest-Version: 1.0\r\n\r\n")},
+				{&zip.FileHeader{Name: "com/example/Main.class"}, []byte("class data")},
+			},
+		},
+		{
+			test: "all_signature_types",
+			input: []*ZipEntry{
+				{&zip.FileHeader{Name: "META-INF/MANIFEST.MF"}, []byte("Manifest-Version: 1.0\r\n\r\n")},
+				{&zip.FileHeader{Name: "META-INF/app.SF"}, []byte("Signature-Version: 1.0\r\nCreated-By: SignTool\r\n\r\n")},
+				{&zip.FileHeader{Name: "META-INF/app.RSA"}, []byte("RSA SIGNATURE CONTENT")},
+				{&zip.FileHeader{Name: "META-INF/app.DSA"}, []byte("DSA SIGNATURE CONTENT")},
+			},
+			expected: []*ZipEntry{
+				{&zip.FileHeader{Name: "META-INF/MANIFEST.MF"}, []byte("Manifest-Version: 1.0\r\n\r\n")},
+				{&zip.FileHeader{Name: "META-INF/app.SF"}, []byte{}},
+				{&zip.FileHeader{Name: "META-INF/app.RSA"}, []byte{}},
+				{&zip.FileHeader{Name: "META-INF/app.DSA"}, []byte{}},
+			},
+		},
+		{
+			test: "strict_casing",
+			input: []*ZipEntry{
+				{&zip.FileHeader{Name: "META-INF/APP.sf"}, []byte("Signature content")},
+				{&zip.FileHeader{Name: "META-INF/App.RSA"}, []byte("RSA content")},
+				{&zip.FileHeader{Name: "META-INF/app.dsa"}, []byte("DSA content")},
+			},
+			expected: []*ZipEntry{
+				{&zip.FileHeader{Name: "META-INF/APP.sf"}, []byte("Signature content")},
+				{&zip.FileHeader{Name: "META-INF/App.RSA"}, []byte{}},
+				{&zip.FileHeader{Name: "META-INF/app.dsa"}, []byte("DSA content")},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.test, func(t *testing.T) {
+			// Create input zip
+			var input bytes.Buffer
+			{
+				zw := zip.NewWriter(&input)
+				for _, entry := range tc.input {
+					orDie(entry.WriteTo(zw))
+				}
+				orDie(zw.Close())
+			}
+
+			// Process with stabilizer
+			var output bytes.Buffer
+			zr := must(zip.NewReader(bytes.NewReader(input.Bytes()), int64(input.Len())))
+			err := StabilizeZip(zr, zip.NewWriter(&output), StabilizeOpts{
+				Stabilizers: []any{StableJARSignatureFiles},
+			})
+			if err != nil {
+				t.Fatalf("StabilizeZip(%v) = %v, want nil", tc.test, err)
+			}
+
+			// Check output
+			var got []ZipEntry
+			{
+				zr := must(zip.NewReader(bytes.NewReader(output.Bytes()), int64(output.Len())))
+				for _, ent := range zr.File {
+					got = append(got, ZipEntry{&ent.FileHeader, must(io.ReadAll(must(ent.Open())))})
+				}
+			}
+
+			if len(got) != len(tc.expected) {
+				t.Fatalf("StabilizeZip(%v) got %v entries, want %v", tc.test, len(got), len(tc.expected))
+			}
+
+			for i := range got {
+				if !all(
+					got[i].FileHeader.Name == tc.expected[i].FileHeader.Name,
+					bytes.Equal(got[i].Body, tc.expected[i].Body),
+				) {
+					t.Errorf("Entry %d of %v:\r\ngot:  %+v\r\nwant: %+v", i, tc.test, got[i], tc.expected[i])
+				}
+			}
+		})
+	}
+}
+
+func TestStableOrderOfAttributeValues(t *testing.T) {
+	testCases := []struct {
+		test     string
+		input    []*ZipEntry
+		expected []*ZipEntry
+	}{
+		{
+			test: "order_of_attribute_values",
+			input: []*ZipEntry{
+				{
+					&zip.FileHeader{Name: "META-INF/MANIFEST.MF"},
+					[]byte("Export-Package: org.slf4j.ext;version=\"2.0.6\";uses:=\"org.slf4j\",org.slf4\n j.agent;version=\"2.0.6\",org.slf4j.instrumentation;uses:=javassist;versi\n on=\"2.0.6\",org.slf4j.cal10n;version=\"2.0.6\";uses:=\"ch.qos.cal10n,org.sl\n f4j,org.slf4j.ext\",org.slf4j.profiler;version=\"2.0.6\";uses:=\"org.slf4j\""),
+				},
+			},
+			expected: []*ZipEntry{
+				{
+					&zip.FileHeader{Name: "META-INF/MANIFEST.MF"},
+					[]byte("Export-Package: org.slf4j,org.slf4j.agent;version=\"2.0.6\",org.slf4j.cal10n;version=\"2.0.6\";uses:=\"ch.qos.cal10n,org.slf4j.ext\",org.slf4j.ext;version=\"2.0.6\";uses:=\"org.slf4j\",org.slf4j.instrumentation;uses:=javassist;version=\"2.0.6\",org.slf4j.profiler;version=\"2.0.6\";uses:=\"org.slf4j\",org.slf4j;version=\"2.0.6\""),
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.test, func(t *testing.T) {
+			// Create input zip
+			var input bytes.Buffer
+			{
+				zw := zip.NewWriter(&input)
+				for _, entry := range tc.input {
+					orDie(entry.WriteTo(zw))
+				}
+				orDie(zw.Close())
+			}
+
+			// Process with stabilizer
+			var output bytes.Buffer
+			zr := must(zip.NewReader(bytes.NewReader(input.Bytes()), int64(input.Len())))
+			err := StabilizeZip(zr, zip.NewWriter(&output), StabilizeOpts{
+				Stabilizers: []any{StableJAROrderOfAttributeValues},
+			})
+			if err != nil {
+				t.Fatalf("StabilizeZip(%v) = %v, want nil", tc.test, err)
+			}
+
+			// Check output
+			var got []ZipEntry
+			{
+				zr := must(zip.NewReader(bytes.NewReader(output.Bytes()), int64(output.Len())))
+				for _, ent := range zr.File {
+					got = append(got, ZipEntry{&ent.FileHeader, must(io.ReadAll(must(ent.Open())))})
+				}
+			}
+
+			if len(got) != len(tc.expected) {
+				t.Fatalf("StabilizeZip(%v) got %v entries, want %v", tc.test, len(got), len(tc.expected))
+			}
+
+			for i := range got {
+				if !all(
+					got[i].FileHeader.Name == tc.expected[i].FileHeader.Name,
+					bytes.Equal(got[i].Body, tc.expected[i].Body),
+				) {
+					t.Errorf("Entry %d of %v:\r\ngot:  %+v\r\nwant: %+v", i, tc.test, string(got[i].Body), string(tc.expected[i].Body))
+				}
+			}
+		})
+	}
+}
