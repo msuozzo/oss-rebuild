@@ -281,13 +281,13 @@ func TestStableOrderOfAttributeValues(t *testing.T) {
 				t.Fatalf("Could not parse expected manifest: %v", err)
 			}
 
-			if len(manifestGot.MainSection.Attributes) != len(manifestWant.MainSection.Attributes) {
-				t.Fatalf("StabilizeZip(%v) got %v entries, want %v", tc.test, len(manifestGot.MainSection.Attributes), len(manifestWant.MainSection.Attributes))
+			if len(manifestGot.MainSection.attributes) != len(manifestWant.MainSection.attributes) {
+				t.Fatalf("StabilizeZip(%v) got %v entries, want %v", tc.test, len(manifestGot.MainSection.attributes), len(manifestWant.MainSection.attributes))
 			}
 
 			for _, attr := range tc.attributeName {
-				gotOrder := getSeparatedValues(manifestGot.MainSection.Attributes[attr])
-				wantOrder := getSeparatedValues(manifestWant.MainSection.Attributes[attr])
+				gotOrder := getSeparatedValues(manifestGot.MainSection.attributes[attr])
+				wantOrder := getSeparatedValues(manifestWant.MainSection.attributes[attr])
 				if gotOrder == nil || wantOrder == nil {
 					t.Fatalf("Could not parse expected or actual manifest")
 				}
