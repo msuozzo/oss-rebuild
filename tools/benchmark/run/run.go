@@ -18,7 +18,44 @@ import (
 	"github.com/google/oss-rebuild/pkg/rebuild/schema"
 	"github.com/google/oss-rebuild/tools/benchmark"
 	"github.com/pkg/errors"
+	"golang.org/x/time/rate"
 )
+
+// Limiter wraps rate.Limiter with exponential backoff support.
+type Limiter struct {
+	*rate.Limiter
+	minPeriod     time.Duration
+	currentPeriod time.Duration
+}
+
+// NewLimiter creates a new Limiter with the specified minimum period between requests.
+func NewLimiter(period time.Duration) *Limiter {
+	return &Limiter{
+		Limiter:       rate.NewLimiter(rate.Every(period), 1),
+		minPeriod:     period,
+		currentPeriod: period,
+	}
+}
+
+// Backoff increases the period between requests by 33%.
+func (l *Limiter) Backoff() {
+	l.currentPeriod = l.currentPeriod * 4 / 3
+	l.SetLimit(rate.Every(l.currentPeriod))
+}
+
+// Success nudges the period back toward the minimum.
+func (l *Limiter) Success() {
+	if l.currentPeriod > l.minPeriod {
+		// Decrease period by 10%
+		l.currentPeriod = max(l.minPeriod, l.currentPeriod*9/10)
+		l.SetLimit(rate.Every(l.currentPeriod))
+	}
+}
+
+// CurrentPeriod returns the current period between requests.
+func (l *Limiter) CurrentPeriod() time.Duration {
+	return l.currentPeriod
+}
 
 // ExecutionService defines the contract for services that can execute rebuilds or smoketests.
 type ExecutionService interface {
@@ -102,7 +139,7 @@ func (ex *executor) Process(ctx context.Context, out chan schema.Verdict, packag
 
 type workerConfig struct {
 	execService ExecutionService
-	limiters    map[string]<-chan time.Time
+	limiters    map[string]*Limiter
 	runID       string
 }
 
@@ -123,7 +160,6 @@ func (w *attestWorker) ProcessOne(ctx context.Context, p benchmark.Package, out 
 		log.Fatalf("Provided artifact slice does not match versions: %s", p.Name)
 	}
 	for i, v := range p.Versions {
-		<-w.limiters[p.Ecosystem]
 		var artifact string
 		if len(p.Artifacts) > 0 {
 			artifact = p.Artifacts[i]
@@ -137,7 +173,24 @@ func (w *attestWorker) ProcessOne(ctx context.Context, p benchmark.Package, out 
 			UseSyscallMonitor: w.useSyscallMonitor,
 			UseNetworkProxy:   w.useNetworkProxy,
 		}
-		verdict, err := w.execService.RebuildPackage(ctx, req)
+		var verdict *schema.Verdict
+		var err error
+		for range 3 {
+			if err := w.limiters[p.Ecosystem].Wait(ctx); err != nil {
+				log.Printf("limiter wait error: %v", err)
+				break
+			}
+			verdict, err = w.execService.RebuildPackage(ctx, req)
+			if err != nil && errors.Is(err, api.ErrExhausted) {
+				w.limiters[p.Ecosystem].Backoff()
+				log.Printf("rate limited, backing off to %s", w.limiters[p.Ecosystem].CurrentPeriod())
+				continue
+			}
+			break
+		}
+		if err == nil {
+			w.limiters[p.Ecosystem].Success()
+		}
 		if err != nil {
 			out <- schema.Verdict{
 				Target: rebuild.Target{
@@ -165,14 +218,30 @@ func (w *smoketestWorker) Setup(ctx context.Context) {
 }
 
 func (w *smoketestWorker) ProcessOne(ctx context.Context, p benchmark.Package, out chan schema.Verdict) {
-	<-w.limiters[p.Ecosystem]
 	req := schema.SmoketestRequest{
 		Ecosystem: rebuild.Ecosystem(p.Ecosystem),
 		Package:   p.Name,
 		Versions:  p.Versions,
 		ID:        w.runID,
 	}
-	resp, err := w.execService.SmoketestPackage(ctx, req)
+	var resp *schema.SmoketestResponse
+	var err error
+	for range 3 {
+		if err := w.limiters[p.Ecosystem].Wait(ctx); err != nil {
+			log.Printf("limiter wait error: %v", err)
+			break
+		}
+		resp, err = w.execService.SmoketestPackage(ctx, req)
+		if err != nil && errors.Is(err, api.ErrExhausted) {
+			w.limiters[p.Ecosystem].Backoff()
+			log.Printf("rate limited, backing off to %s", w.limiters[p.Ecosystem].CurrentPeriod())
+			continue
+		}
+		break
+	}
+	if err == nil {
+		w.limiters[p.Ecosystem].Success()
+	}
 	if err != nil {
 		errMsg := err.Error()
 		for _, v := range p.Versions {
@@ -192,15 +261,15 @@ func (w *smoketestWorker) ProcessOne(ctx context.Context, p benchmark.Package, o
 	}
 }
 
-func defaultLimiters() map[string]<-chan time.Time {
-	return map[string]<-chan time.Time{
-		"debian": time.Tick(time.Second),
-		"pypi":   time.Tick(time.Second),
-		"npm":    time.Tick(2 * time.Second),
-		"maven":  time.Tick(2 * time.Second),
+func defaultLimiters() map[string]*Limiter {
+	return map[string]*Limiter{
+		"debian": NewLimiter(time.Second),
+		"pypi":   NewLimiter(time.Second),
+		"npm":    NewLimiter(2 * time.Second),
+		"maven":  NewLimiter(2 * time.Second),
 		// NOTE: cratesio needs to be especially slow given our registry API
 		// constraint of 1QPS. At minimum, we expect to make 4 calls per test.
-		"cratesio": time.Tick(8 * time.Second),
+		"cratesio": NewLimiter(8 * time.Second),
 	}
 }
 
