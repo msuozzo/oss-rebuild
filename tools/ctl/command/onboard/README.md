@@ -16,6 +16,7 @@ of the arithmetic.
 | Signal | What it measures | Source |
 |---------|------------------|--------|
 | criticality | distinct packages that depend on this one | deps.dev dependency graph |
+| prominence | how well known the package is by name | one Gemini call per package |
 
 Criticality is computed at two granularities. The package number answers "is
 this package worth onboarding at all". The per-version number answers "which of
@@ -28,16 +29,31 @@ updating its own signal, so readers get a number rather than recomputing a
 formula, and jobs can land in any order without erasing each other.
 
 ```sh
-# Read-only against public BigQuery data. Dump to inspect, load to apply.
+# Criticality: read-only against public BigQuery data.
 ctl onboard priority criticality --project ssci-demos --out crit.json
 ctl onboard priority criticality --project ssci-demos --load
+
+# Prominence: one cached model call per package. The corpus can be the export above.
+ctl onboard priority prominence --project ssci-demos --corpus crit.json \
+    --cache prom-cache.json --horizon 2025-06-01 --load
 ```
+
+The two signals cover each other rather than corroborating each other.
+Criticality sees blast radius, including plumbing nobody has heard of, and it
+correctly sinks deprecated names that are still famous. Prominence sees public
+awareness, including the leaf applications no dependency graph can rank: an
+application like ripgrep has no dependents no matter how many people install it.
+Equal weight is the neutral prior, and a package carrying only one signal
+scores at most half.
 
 Criticality is deliberately not the OSSF Criticality Score, which scores
 repository activity. It measures blast radius only, because reverse-dependent
 counts are the one importance signal published uniformly across every ecosystem
 deps.dev covers. Download counts and repository statistics would serve a similar
-role but are not available through all registries.
+role but are not available through all registries, which is also why prominence
+is elicited from a model rather than read off a registry. See
+[PROMINENCE.md](PROMINENCE.md) for that argument in full, including the horizon
+rule and why there is no anti-gaming filter stack.
 
 ## The queue
 

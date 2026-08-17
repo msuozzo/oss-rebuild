@@ -10,7 +10,9 @@
 // job under `ctl onboard priority`, and each stored as a per-ecosystem quantile
 // so that heavy tails and incomparable registry scales stay out of the
 // arithmetic. Criticality is the graph signal: how many other packages depend
-// on this one, measured both per package and per version.
+// on this one, measured both per package and per version. Prominence is the
+// awareness signal: how well known the package is by name, which is what
+// carries the leaf applications no dependency graph can rank.
 //
 // LadderTarget tracks one package version's progress. Targets climb tiers
 // T0..T3, each more expensive than the last, ordered by DispatchOrder, which

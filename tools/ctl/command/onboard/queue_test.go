@@ -17,22 +17,20 @@ func TestScoreVersionsPrefersVersionCriticality(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	crit := db.NewMemoryVersionCriticalities()
-	// The widely-resolved version is a year old, the fresh one has no
-	// dependents at all. Ranking on recency alone would invert these.
-	if err := crit.Upsert(ctx, scheduler.VersionCriticality{
-		Ecosystem: "npm", Package: "lodash", Version: "4.17.21", QCrit: 1.0,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := crit.Upsert(ctx, scheduler.VersionCriticality{
-		Ecosystem: "npm", Package: "lodash", Version: "5.0.0-rc1", QCrit: 0.01,
-	}); err != nil {
-		t.Fatal(err)
+	for v, q := range map[string]float64{"4.17.21": 1.0, "4.0.0": 0.01} {
+		if err := crit.Upsert(ctx, scheduler.VersionCriticality{
+			Ecosystem: "npm", Package: "lodash", Version: v, QCrit: q,
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	cfg := enqueueConfig{Ecosystem: "npm", Package: "lodash", FreshnessK: 3, FreshnessTauHours: 120}
-	got := scoreVersions(ctx, crit, scheduler.Priority{QCrit: 0.5}, []versionInfo{
-		{Version: "4.17.21", Published: now.AddDate(-1, 0, 0)},
-		{Version: "5.0.0-rc1", Published: now.Add(-time.Hour)},
+	priority := scheduler.Priority{QCrit: 0.5, QProm: 0.9}
+	// Both are old enough that freshness has decayed to nothing, so what
+	// separates them is how many packages actually resolve to each.
+	got := scoreVersions(ctx, crit, priority, []versionInfo{
+		{Version: "4.0.0", Published: now.AddDate(-1, 0, 0)},
+		{Version: "4.17.21", Published: now.AddDate(0, -6, 0)},
 	}, cfg, now)
 
 	if len(got) != 2 {
@@ -41,8 +39,42 @@ func TestScoreVersionsPrefersVersionCriticality(t *testing.T) {
 	if got[0].Version != "4.17.21" {
 		t.Errorf("first admitted = %q, want the widely-depended-upon 4.17.21", got[0].Version)
 	}
-	if got[0].Score != 1.0 || got[1].Score != 0.01 {
-		t.Errorf("scores = %v, %v; want the version quantiles 1 and 0.01", got[0].Score, got[1].Score)
+	// Each version is scored against its own criticality, with the package's
+	// prominence carried through unchanged.
+	if want := priority.ScoreWith(1.0); got[0].Score != want {
+		t.Errorf("score = %v, want %v from the version quantile 1.0", got[0].Score, want)
+	}
+	if want := priority.ScoreWith(0.01); got[1].Score != want {
+		t.Errorf("score = %v, want %v from the version quantile 0.01", got[1].Score, want)
+	}
+}
+
+func TestScoreVersionsLetsFreshnessOverrideCriticality(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	crit := db.NewMemoryVersionCriticalities()
+	for v, q := range map[string]float64{"4.17.21": 1.0, "5.0.0-rc1": 0.01} {
+		if err := crit.Upsert(ctx, scheduler.VersionCriticality{
+			Ecosystem: "npm", Package: "lodash", Version: v, QCrit: q,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := enqueueConfig{Ecosystem: "npm", Package: "lodash", FreshnessK: 3, FreshnessTauHours: 120}
+	got := scoreVersions(ctx, crit, scheduler.Priority{QCrit: 0.5, QProm: 0.9}, []versionInfo{
+		{Version: "4.17.21", Published: now.AddDate(-1, 0, 0)},
+		{Version: "5.0.0-rc1", Published: now.Add(-time.Hour)},
+	}, cfg, now)
+
+	// An hours-old release outranks a year-old one that far more packages
+	// depend on. That is deliberate: the freshness multiplier spans 1 to 1+k,
+	// so it is allowed to overturn a score gap, trading completeness for
+	// getting new releases covered quickly. Lower --freshness-k to weaken it.
+	if got[0].Version != "5.0.0-rc1" {
+		t.Errorf("first admitted = %q, want the brand-new 5.0.0-rc1", got[0].Version)
+	}
+	if got[0].Score >= got[1].Score {
+		t.Error("the fresh version should win on freshness despite a lower score")
 	}
 }
 
@@ -52,7 +84,8 @@ func TestScoreVersionsFallsBackToPackageCriticality(t *testing.T) {
 	cfg := enqueueConfig{Ecosystem: "npm", Package: "obscure", FreshnessK: 3, FreshnessTauHours: 120}
 	// No version criticality at all, so every version inherits the package's
 	// and recency is left to order the back catalogue.
-	got := scoreVersions(ctx, db.NewMemoryVersionCriticalities(), scheduler.Priority{QCrit: 0.7}, []versionInfo{
+	priority := scheduler.Priority{QCrit: 0.7}
+	got := scoreVersions(ctx, db.NewMemoryVersionCriticalities(), priority, []versionInfo{
 		{Version: "1.0.0", Published: now.AddDate(-2, 0, 0)},
 		{Version: "2.0.0", Published: now.Add(-time.Hour)},
 	}, cfg, now)
@@ -61,8 +94,8 @@ func TestScoreVersionsFallsBackToPackageCriticality(t *testing.T) {
 		t.Errorf("first admitted = %q, want the freshest 2.0.0", got[0].Version)
 	}
 	for _, lt := range got {
-		if lt.Score != 0.7 {
-			t.Errorf("%s score = %v, want the package quantile 0.7", lt.Version, lt.Score)
+		if want := priority.ScoreWith(priority.QCrit); lt.Score != want {
+			t.Errorf("%s score = %v, want the package's own %v", lt.Version, lt.Score, want)
 		}
 		if lt.State != scheduler.StateQueued || scheduler.Tier(lt.NextTier) != scheduler.TierInference {
 			t.Errorf("%s enqueued as %v at %v, want queued at T1", lt.Version, lt.State, scheduler.Tier(lt.NextTier))

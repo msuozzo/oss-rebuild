@@ -26,6 +26,8 @@ func TestRankByEcosystem(t *testing.T) {
 		{Ecosystem: "npm", Package: "", Dependents: 5},
 	}, now)
 
+	// Neither result carries a score. Only upsertMerged can set one, since it
+	// alone sees the package's other signals.
 	wantPrios := []scheduler.Priority{
 		{Ecosystem: "npm", Package: "lodash", Dependents: 9000, QCrit: 1.0, Band: "top100", Updated: now},
 		{Ecosystem: "npm", Package: "rarely-used", Dependents: 1, QCrit: 0.5, Band: "top100", Updated: now},

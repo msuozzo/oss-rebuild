@@ -125,13 +125,18 @@ func criticalityHandler(ctx context.Context, cfg criticalityConfig, deps *Deps) 
 		priorities := db.NewFirestorePriorities(fire)
 		var loaded int
 		for _, p := range prios {
-			if err := priorities.Upsert(ctx, p); err != nil {
+			err := upsertMerged(ctx, priorities, p.Ecosystem, p.Package, now, func(cur *scheduler.Priority) {
+				cur.Dependents, cur.QCrit, cur.Band = p.Dependents, p.QCrit, p.Band
+			})
+			if err != nil {
 				fmt.Fprintf(deps.IO.Err, "load %s/%s: %v\n", p.Ecosystem, p.Package, err)
 				continue
 			}
 			loaded++
 		}
 		fmt.Fprintf(deps.IO.Out, "loaded %d of %d priority document(s)\n", loaded, len(prios))
+		// Version criticality carries only the one signal, so it is written
+		// outright rather than merged.
 		criticalities := db.NewFirestoreVersionCriticalities(fire)
 		loaded = 0
 		for _, v := range vers {
