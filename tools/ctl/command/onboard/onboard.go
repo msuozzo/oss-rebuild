@@ -27,6 +27,6 @@ func Command() *cobra.Command {
 		Use:   "onboard",
 		Short: "Bring packages into rebuild coverage",
 	}
-	cmd.AddCommand(priorityCommand())
+	cmd.AddCommand(priorityCommand(), enqueueCommand(), statusCommand())
 	return cmd
 }
