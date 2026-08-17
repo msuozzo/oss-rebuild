@@ -84,3 +84,16 @@ plus a discrete readout is the whole mechanism.
   package whose reverse-dependents still point at the old name gets a
   criticality that lags reality. Rename-aware resolution belongs to deps.dev
   edge canonicalization, not here. Prominence cannot fix it and does not try.
+
+## Validating a change
+
+`ctl onboard priority eval` scores a held-out confounder set of famous packages,
+long-tail real ones, names that collide with common English words, and names
+that do not exist. Run it after any change to the rubric or the model.
+
+The main AUC is the metric of record. The false-positive and disambiguation
+gates are trust-oriented and matter less here, but a regression in either is
+evidence the rubric has drifted, so they are enforced too. Use `--dump` to see
+which rows are responsible for a failure: the historical failures have all been
+either testset mislabels or hallucination bait like `pytorch`, whose real PyPI
+name is `torch`.

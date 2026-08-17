@@ -1,0 +1,111 @@
+name,ecosystem,category,expected_high,notes
+# category values: prominent-real | obscure-real | word-confounder | cross-domain | cross-eco-reuse | nonexistent
+# expected_high: TRUE = LLM-prominence SHOULD rank this high (famous package); FALSE = should rank LOW (obscure/confounder/fake)
+# obscure-real rows are pulled from the tails (rank ~1450-3000) of model_{pypi,cargo,npm}.csv
+# CORRECTED 2026-08: several word-confounders (wheel, log, time, bytes, num, ms) were relabeled
+#   FALSE->TRUE. They ARE genuinely prominent packages; the old FALSE encoded a defensive
+#   "skeptical of common-word names" stance that is factually wrong for the prominence signal
+#   (the rebuild consumer WANTS a real prominent pkg rated high). eval-prominence's nonexistent-FPR
+#   and word-disambig gates are TRUST-oriented (defend Value-as-a-trust-signal); the
+#   rebuild-prioritization consumer's metric of record is the main AUC. See GAMING_RESISTANCE.md.
+# --- PYPI ---
+requests,pypi,prominent-real,TRUE,top-3 by centrality; famous library AND the English word
+numpy,pypi,prominent-real,TRUE,foundational; anchor for calibration
+pandas,pypi,prominent-real,TRUE,famous library; name also = the animal (cross-domain overlap but pkg dominates)
+django,pypi,prominent-real,TRUE,famous web framework; name also a Tarantino film
+ruff,pypi,prominent-real,TRUE,dev tool (linter); rank 385 by centrality but 48k stars; partial gap case
+uv,pypi,prominent-real,TRUE,dev tool (pkg manager); 88k stars; 2-char name = tokenization stress test
+black,pypi,prominent-real,TRUE,famous formatter AND extremely common English word (hard word-confounder overlap)
+poetry,pypi,prominent-real,TRUE,famous pkg manager AND common English word
+yt-dlp,pypi,prominent-real,TRUE,famous end-user CLI app; 180k stars; hyphen+abbrev tokenization
+streamlit,pypi,prominent-real,TRUE,famous app framework; centrality present but stars-driven
+click,pypi,word-confounder,TRUE,IS a famous pkg AND the word 'click'; expected_high TRUE but flag as ambiguity anchor
+rich,pypi,word-confounder,TRUE,famous TUI lib AND the word 'rich'; ambiguity anchor
+wheel,pypi,word-confounder,TRUE,CORRECTED 2026-08: 'wheel' is a genuinely prominent pkg (core packaging build dep); prior FALSE was a defensive anti-over-rank label, factually wrong
+pin,pypi,word-confounder,FALSE,obscure pkg (rank 2988) but 'pin' is a very common word; over-rank risk
+arrow,pypi,word-confounder,FALSE,datetime lib exists but the WORD/Apache Arrow dominate; disambiguation test
+pillow,pypi,cross-domain,TRUE,famous imaging lib; word 'pillow' is common object; pkg still expected high
+kivy,pypi,obscure-real,FALSE,real GUI framework but niche; distinctive coined name (low collision)
+niquests,pypi,obscure-real,FALSE,tail rank 1452; real requests-fork; near-nonexistent to a small model
+screeninfo,pypi,obscure-real,FALSE,tail rank 1455; real but obscure utility
+treelib,pypi,obscure-real,FALSE,tail rank 1462; real obscure lib
+panflute,pypi,obscure-real,FALSE,tail rank 1466; real obscure pandoc filter lib
+dotty-dict,pypi,obscure-real,FALSE,tail rank 2995; real obscure lib
+kthread,pypi,obscure-real,FALSE,tail rank 2998; real obscure lib
+z3c-jbot,pypi,obscure-real,FALSE,tail rank 2996; real Zope-ecosystem obscure lib
+sphinxcontrib-fulltoc,pypi,obscure-real,FALSE,tail; real Sphinx plugin; no-repo (stars=-1)
+flying-delta-core,pypi,obscure-real,FALSE,rank 1451; renamed/vendored pkg; obscure despite high centrality
+tensorflow-quantum,pypi,cross-domain,FALSE,'quantum' famous topic; the specific pkg is niche; topic-fame over-rank risk
+pytorch,pypi,nonexistent,FALSE,the pip name is 'torch' NOT 'pytorch'; 'pytorch' is a plausible-but-wrong pip name (hallucination bait)
+tensorflow-gpu,pypi,nonexistent,FALSE,deprecated/removed alias; plausible name; should not rank as live prominent
+django-rest,pypi,nonexistent,FALSE,plausible (real one is 'djangorestframework'); hallucination bait
+pandasai,pypi,nonexistent,FALSE,fabricated variant of real 'pandas-ai'; near-miss hallucination bait (real one is hyphenated)
+requests-turbo,pypi,nonexistent,FALSE,fabricated plausible name; pure hallucination control
+numpy-utils,pypi,nonexistent,FALSE,fabricated plausible name; hallucination control
+fastapi-cloud-cli,pypi,obscure-real,FALSE,rank 2991; real but obscure; plausible-sounding (distinguish from nonexistent)
+# --- CARGO ---
+serde,cargo,prominent-real,TRUE,top-2 by centrality; famous serialization crate
+tokio,cargo,prominent-real,TRUE,famous async runtime; coined name (low collision)
+clap,cargo,prominent-real,TRUE,famous arg parser; word 'clap' collision
+ripgrep,cargo,prominent-real,TRUE,GAP CASE: famous CLI (~50k stars) but MISSING from centrality top-3000
+starship,cargo,prominent-real,TRUE,GAP CASE: famous shell prompt CLI; MISSING from centrality top-3000
+zoxide,cargo,prominent-real,TRUE,GAP CASE: famous cd-replacement CLI; MISSING from centrality top-3000
+nushell,cargo,prominent-real,TRUE,GAP CASE: famous shell; MISSING from centrality top-3000
+hyperfine,cargo,prominent-real,TRUE,GAP CASE: famous benchmarking CLI; MISSING from centrality top-3000
+bat,cargo,prominent-real,TRUE,GAP CASE: famous cat-replacement CLI (rank 2579 / 60k stars); word 'bat' collision too
+wasm-pack,cargo,prominent-real,TRUE,GAP CASE: famous build tool; MISSING from centrality top-3000
+rand,cargo,word-confounder,TRUE,rank-1 famous crate AND abbrev of 'random'; anchor
+log,cargo,word-confounder,TRUE,CORRECTED 2026-08: 'log' is a top-tier cargo crate (the logging facade); prior FALSE was defensive anti-over-rank, factually wrong
+time,cargo,word-confounder,TRUE,CORRECTED 2026-08: 'time' is a prominent cargo crate; prior FALSE was defensive anti-over-rank, factually wrong
+bytes,cargo,word-confounder,TRUE,CORRECTED 2026-08: 'bytes' is a prominent cargo crate (tokio ecosystem); prior FALSE was defensive anti-over-rank, factually wrong
+either,cargo,word-confounder,FALSE,real crate but 'either' is a stopword; strong over-rank risk
+num,cargo,word-confounder,TRUE,CORRECTED 2026-08: 'num' is a widely-used numeric meta-crate; prior FALSE was defensive anti-over-rank (borderline), corrected to reality
+metal,cargo,cross-domain,FALSE,rank 1469 obscure crate; 'Metal' = Apple GPU API + music genre; topic-fame bait
+precision,cargo,word-confounder,FALSE,tail rank 2994; common word; over-rank risk
+blas,cargo,cross-domain,FALSE,tail 2985; BLAS is famous numerics standard but this specific crate is obscure
+vek,cargo,obscure-real,FALSE,rank 1450; real math crate; distinctive coined name
+arboard,cargo,obscure-real,FALSE,rank 1451; real clipboard crate; obscure
+smart-default,cargo,obscure-real,FALSE,rank 1452; real derive-macro crate; obscure
+polonius-the-crab,cargo,obscure-real,FALSE,tail 2988; real but very obscure; distinctive name
+constcat,cargo,obscure-real,FALSE,tail 2996; real obscure macro crate
+liburing-sys,cargo,obscure-real,FALSE,tail 2980; real -sys binding crate; obscure
+crossbeam-skiplist,cargo,obscure-real,FALSE,tail 2991; real crossbeam subcrate; obscure but high-star parent
+trezoa-pubkey,cargo,nonexistent,FALSE,tail 2983; typosquat-looking / spammy; near-nonexistent
+meridian-platform-core,cargo,nonexistent,FALSE,tail 2992; spam/placeholder-looking crate (stars=1)
+somali_derp,cargo,nonexistent,FALSE,tail 3000; junk/placeholder crate; near-nonexistent control
+nathanperry,cargo,nonexistent,FALSE,tail 2997; personal/placeholder crate; near-nonexistent
+npry,cargo,nonexistent,FALSE,tail 2998; placeholder crate; hallucination control
+tokio-turbo,cargo,nonexistent,FALSE,fabricated plausible name; pure hallucination control
+serde-fast,cargo,nonexistent,FALSE,fabricated plausible name; hallucination control
+# --- NPM ---
+react,npm,prominent-real,TRUE,rank-2; famous UI lib; anchor
+lodash,npm,prominent-real,TRUE,famous utility lib; anchor
+express,npm,prominent-real,TRUE,famous web framework AND common word
+typescript,npm,prominent-real,TRUE,famous; coined name
+eslint,npm,prominent-real,TRUE,dev tool; centrality present (rank 117) but tool-shaped
+prettier,npm,prominent-real,TRUE,famous formatter dev tool; word 'prettier' collision
+webpack,npm,prominent-real,TRUE,famous bundler dev tool
+vite,npm,prominent-real,TRUE,famous bundler; coined name; 4 chars
+next,npm,prominent-real,TRUE,famous framework (Next.js) AND extremely common word 'next'; hard confounder
+chalk,npm,word-confounder,TRUE,famous color lib AND the word 'chalk'; ambiguity anchor
+commander,npm,word-confounder,TRUE,famous CLI lib AND the word 'commander'
+ms,npm,word-confounder,TRUE,CORRECTED 2026-08: 'ms' is tiny in code but a top-tier npm pkg by downloads (dep of express/debug/...); prior FALSE was defensive anti-over-rank, factually wrong
+which,npm,word-confounder,FALSE,real util (rank 235) but 'which' is a stopword; strong over-rank risk
+should,npm,word-confounder,FALSE,real assertion lib (rank 1031) but 'should' is a stopword; over-rank risk
+ext,npm,word-confounder,FALSE,tail 2943; real but 'ext' generic abbrev; over-rank risk
+color-name,npm,obscure-real,FALSE,plumbing dep w/ huge centrality; not independently famous; centrality-vs-fame test
+has-flag,npm,obscure-real,FALSE,tiny plumbing dep (rank 59 by centrality); NOT famous to a human; key contrast case
+regenerator-runtime,npm,obscure-real,FALSE,babel plumbing; high centrality but not human-famous
+readable-stream,npm,obscure-real,FALSE,plumbing; high centrality but not independently famous
+is-array-buffer,npm,obscure-real,FALSE,tail 2955; micro-package plumbing
+is-absolute,npm,obscure-real,FALSE,tail 2954; micro-package; 'is-X' pattern
+should-util,npm,obscure-real,FALSE,tail 2951; obscure (stars=1)
+xml-naming,npm,obscure-real,FALSE,tail 2952; obscure (stars=1)
+optionator,npm,obscure-real,FALSE,tail 2946; real obscure option-parsing lib
+jsonpath,npm,cross-domain,FALSE,'JSONPath' is a famous spec; this specific npm pkg is one of many impls; spec-fame bait
+react-native,npm,prominent-real,TRUE,famous; distinguish from fabricated react-* names below
+react-fast,npm,nonexistent,FALSE,fabricated plausible react-* name; hallucination control
+express-turbo,npm,nonexistent,FALSE,fabricated plausible name; hallucination control
+lodash-utils,npm,nonexistent,FALSE,fabricated plausible name; hallucination control
+node-fetch-v3,npm,nonexistent,FALSE,plausible (real is 'node-fetch'); versioned-suffix hallucination bait
+left-pad,npm,cross-domain,TRUE,INFAMOUS (the 2016 unpublish incident); famous for drama not utility; fame-source test

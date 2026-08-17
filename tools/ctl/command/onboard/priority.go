@@ -23,7 +23,7 @@ func priorityCommand() *cobra.Command {
 		Use:   "priority",
 		Short: "Compute and load the signals that rank onboarding candidates",
 	}
-	cmd.AddCommand(criticalityCommand(), prominenceCommand())
+	cmd.AddCommand(criticalityCommand(), prominenceCommand(), evalCommand())
 	return cmd
 }
 

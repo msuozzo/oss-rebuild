@@ -36,6 +36,9 @@ ctl onboard priority criticality --project ssci-demos --load
 # Prominence: one cached model call per package. The corpus can be the export above.
 ctl onboard priority prominence --project ssci-demos --corpus crit.json \
     --cache prom-cache.json --horizon 2025-06-01 --load
+
+# Validate the scorer after changing the rubric or the model.
+ctl onboard priority eval --project ssci-demos
 ```
 
 The two signals cover each other rather than corroborating each other.
