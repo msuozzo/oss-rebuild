@@ -9,7 +9,7 @@ import "github.com/spf13/cobra"
 // Each subcommand owns one signal of package importance: it computes that
 // signal, ranks it into per-ecosystem quantiles, and materializes the fused
 // score onto the package's priority document. They run on their own cadence,
-// independently of the crank.
+// independently of the rounds that spend against them.
 func priorityCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "priority",

@@ -3,7 +3,7 @@
 
 // Package onboard implements the commands that bring packages into oss-rebuild
 // coverage: the offline priority signals that decide what is worth rebuilding
-// first, and the crank that spends rebuild capacity acting on that order.
+// first, and the rounds that spend rebuild capacity acting on that order.
 package onboard
 
 import (
@@ -27,6 +27,6 @@ func Command() *cobra.Command {
 		Use:   "onboard",
 		Short: "Bring packages into rebuild coverage",
 	}
-	cmd.AddCommand(priorityCommand(), enqueueCommand(), statusCommand())
+	cmd.AddCommand(priorityCommand(), enqueueCommand(), roundCommand(), statusCommand())
 	return cmd
 }

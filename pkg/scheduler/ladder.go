@@ -51,7 +51,7 @@ const (
 	OutcomeFailure   Outcome = "FAILURE"   // ran and failed, escalate or park
 )
 
-// TargetState tracks where a target sits in the crank's workflow.
+// TargetState tracks where a target sits in the dispatch workflow.
 type TargetState string
 
 const (

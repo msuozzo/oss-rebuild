@@ -249,6 +249,13 @@ func statusHandler(ctx context.Context, cfg statusConfig, deps *Deps) (*act.NoOu
 	if len(all) > 0 {
 		fmt.Fprintf(out, "coverage (attested/total): %d/%d = %.1f%%\n", attested, len(all), 100*float64(attested)/float64(len(all)))
 	}
+	b, err := db.NewFirestoreLadderBudget(fire).Get(ctx, scheduler.BudgetDocID)
+	if err == nil {
+		fmt.Fprintf(out, "T2 budget (period from %s): tokens %d/%d, sessions %d/%d\n",
+			b.PeriodStart.Format(time.RFC3339), b.TokenSpent, b.TokenCap, b.IterSpent, b.IterCap)
+	} else if !errors.Is(err, db.ErrNotFound) {
+		fmt.Fprintf(deps.IO.Err, "reading budget: %v\n", err)
+	}
 	return &act.NoOutput{}, nil
 }
 
@@ -256,7 +263,7 @@ func statusCommand() *cobra.Command {
 	cfg := statusConfig{}
 	cmd := &cobra.Command{
 		Use:   "status --project <project>",
-		Short: "Print queue state and coverage",
+		Short: "Print queue, coverage, and T2 budget summary",
 		Args:  cobra.NoArgs,
 		RunE:  cli.RunE(&cfg, cli.SkipArgs[statusConfig], InitDeps, statusHandler),
 	}
