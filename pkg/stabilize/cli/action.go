@@ -222,6 +222,8 @@ func candidateEcosystems(filename string) []target.Ecosystem {
 		return []target.Ecosystem{target.PyPI}
 	case ".gem":
 		return []target.Ecosystem{target.RubyGems}
+	case ".apk":
+		return []target.Ecosystem{target.Alpine}
 	case ".zip":
 		return []target.Ecosystem{target.PyPI}
 	default:

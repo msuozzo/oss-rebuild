@@ -25,6 +25,7 @@ const (
 	Debian   Ecosystem = "debian"
 	RubyGems Ecosystem = "rubygems"
 	OCI      Ecosystem = "oci"
+	Alpine   Ecosystem = "alpine"
 )
 
 // Target is a single target we might attempt to rebuild.
@@ -75,6 +76,10 @@ func (t Target) ArchiveType() archive.Format {
 		return archive.TarFormat
 	case OCI:
 		return archive.TarFormat
+	case Alpine:
+		// An apk is three concatenated gzip members that read as one tar
+		// stream.
+		return archive.TarGzFormat
 	default:
 		return archive.UnknownFormat
 	}

@@ -22,6 +22,7 @@ const (
 	Debian   = target.Debian
 	RubyGems = target.RubyGems
 	OCI      = target.OCI
+	Alpine   = target.Alpine
 )
 
 // Target is a single target we might attempt to rebuild.

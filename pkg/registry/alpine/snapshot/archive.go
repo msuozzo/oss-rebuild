@@ -8,16 +8,37 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
+	"github.com/google/oss-rebuild/internal/gcsx"
 	"github.com/google/oss-rebuild/internal/httpx"
+	"github.com/google/oss-rebuild/internal/urlx"
 	"github.com/google/oss-rebuild/pkg/registry/alpine"
 	"github.com/pkg/errors"
 )
+
+// DefaultBucket is the GCS bucket of the archive OSS Rebuild publishes.
+const DefaultBucket = "google-rebuild-alpine-snapshots"
 
 // Archive reads a snapshot archive over HTTP.
 type Archive struct {
 	Client httpx.BasicClient
 	URL    *url.URL // the archive root
+}
+
+// GCSArchive is the archive held in a GCS bucket.
+func GCSArchive(client httpx.BasicClient, bucket string) Archive {
+	return Archive{Client: client, URL: urlx.MustParse(gcsx.HTTPURL(bucket, ""))}
+}
+
+// Bucket returns the GCS bucket holding the archive, which timewarp
+// requires to serve it.
+func (a Archive) Bucket() (string, error) {
+	bucket, rest, _ := strings.Cut(strings.TrimPrefix(a.URL.Path, "/"), "/")
+	if a.URL.Host != "storage.googleapis.com" || bucket == "" || rest != "" {
+		return "", errors.Errorf("not a GCS bucket root: %s", a.URL)
+	}
+	return bucket, nil
 }
 
 // Open fetches an object for streaming. A missing object is an

@@ -3,7 +3,10 @@
 
 package build
 
-import "github.com/google/oss-rebuild/pkg/rebuild/rebuild"
+import (
+	"github.com/google/oss-rebuild/pkg/rebuild/alpine"
+	"github.com/google/oss-rebuild/pkg/rebuild/rebuild"
+)
 
 type BaseImageConfig struct {
 	Default    string                       `json:"default"`
@@ -16,6 +19,12 @@ func (c BaseImageConfig) SelectFor(input rebuild.Input, req rebuild.RequiredEnv)
 	}
 	if img, ok := c.Ecosystems[input.Target.Ecosystem]; ok {
 		return img
+	}
+	// Alpine builds need the image of their target's branch.
+	if input.Target.Ecosystem == rebuild.Alpine {
+		if img, err := alpine.BaseImage(input.Target); err == nil {
+			return img
+		}
 	}
 	return c.Default
 }

@@ -65,3 +65,17 @@ func TestParseIndex(t *testing.T) {
 		t.Errorf("Records mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestReadPkgInfo(t *testing.T) {
+	p := apktest.NewPackage("x", "1.0-r0", []byte("hello"), "origin = x-src", "commit = abc")
+	// Only the signature and control members are needed.
+	info, err := apk.ReadPkgInfo(bytes.NewReader(p.Bytes[:bytes.LastIndex(p.Bytes, []byte{0x1f, 0x8b, 8})]))
+	if err != nil {
+		t.Fatalf("ReadPkgInfo() = %v", err)
+	}
+	got := []string{info.Get("pkgname"), info.Get("origin"), info.Get("commit"), info.Get("datahash")}
+	want := []string{"x", "x-src", "abc", p.DataHash}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("ReadPkgInfo() mismatch (-want +got):\n%s", diff)
+	}
+}

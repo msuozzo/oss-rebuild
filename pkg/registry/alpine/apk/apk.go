@@ -236,6 +236,10 @@ func (p *packageReader) pkgInfo(h hash.Hash) (*PkgInfo, error) {
 	return ParsePkgInfo(string(pkginfo)), nil
 }
 
+// ReadPkgInfo reads a package's .PKGINFO. It reads only the signature and
+// control members, so the data member need not be fetched.
+func ReadPkgInfo(r io.Reader) (*PkgInfo, error) { return newPackageReader(r).pkgInfo(nil) }
+
 // TarFile returns the content of the named entry of a tar stream.
 func TarFile(raw []byte, name string) ([]byte, error) {
 	tr := tar.NewReader(bytes.NewReader(raw))

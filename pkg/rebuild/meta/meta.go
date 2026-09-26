@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/google/oss-rebuild/internal/httpx"
+	alpinerb "github.com/google/oss-rebuild/pkg/rebuild/alpine"
 	cratesrb "github.com/google/oss-rebuild/pkg/rebuild/cratesio"
 	debianrb "github.com/google/oss-rebuild/pkg/rebuild/debian"
 	mavenrb "github.com/google/oss-rebuild/pkg/rebuild/maven"
@@ -15,6 +16,7 @@ import (
 	pypirb "github.com/google/oss-rebuild/pkg/rebuild/pypi"
 	"github.com/google/oss-rebuild/pkg/rebuild/rebuild"
 	rubygemsrb "github.com/google/oss-rebuild/pkg/rebuild/rubygems"
+	"github.com/google/oss-rebuild/pkg/registry/alpine/snapshot"
 	cratesreg "github.com/google/oss-rebuild/pkg/registry/cratesio"
 	debianreg "github.com/google/oss-rebuild/pkg/registry/debian"
 	mavenreg "github.com/google/oss-rebuild/pkg/registry/maven"
@@ -32,6 +34,7 @@ func NewRegistryMux(c httpx.BasicClient) rebuild.RegistryMux {
 		PyPI:     pypireg.HTTPRegistry{Client: c},
 		Maven:    mavenreg.HTTPRegistry{Client: c},
 		RubyGems: rubygemsreg.HTTPRegistry{Client: c},
+		Alpine:   snapshot.GCSArchive(c, snapshot.DefaultBucket),
 	}
 }
 
@@ -43,6 +46,7 @@ var AllRebuilders = map[rebuild.Ecosystem]rebuild.Rebuilder{
 	rebuild.Maven:    &mavenrb.Rebuilder{},
 	rebuild.RubyGems: &rubygemsrb.Rebuilder{},
 	rebuild.OCI:      &ocirb.Rebuilder{},
+	rebuild.Alpine:   &alpinerb.Rebuilder{},
 }
 
 func GuessArtifact(ctx context.Context, t rebuild.Target, mux rebuild.RegistryMux) (string, error) {
@@ -73,6 +77,12 @@ func GuessArtifact(ctx context.Context, t rebuild.Target, mux rebuild.RegistryMu
 		guess = rubygemsrb.ArtifactName(t)
 	case rebuild.OCI:
 		guess = "image.tar"
+	case rebuild.Alpine:
+		_, name, err := alpinerb.ParsePackage(t.Package)
+		if err != nil {
+			return "", err
+		}
+		guess = name + "-" + t.Version + ".apk"
 	default:
 		return "", errors.New("unknown ecosystem")
 	}

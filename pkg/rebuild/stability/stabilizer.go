@@ -40,6 +40,8 @@ func StabilizersForTarget(t target.Target) ([]stabilize.Stabilizer, error) {
 		if format == archive.TarGzFormat {
 			stabilizers = append(stabilizers, stabilize.AllCrateStabilizers...)
 		}
+	case target.Alpine:
+		stabilizers = append(stabilizers, stabilize.AllApkStabilizers...)
 	case target.RubyGems:
 		if format == archive.TarFormat {
 			stabilizers = append(stabilizers, stabilize.AllGemStabilizers...)

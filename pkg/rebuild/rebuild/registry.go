@@ -8,6 +8,7 @@ import (
 
 	cacheinternal "github.com/google/oss-rebuild/internal/cache"
 	"github.com/google/oss-rebuild/internal/httpx"
+	"github.com/google/oss-rebuild/pkg/registry/alpine/snapshot"
 	"github.com/google/oss-rebuild/pkg/registry/cratesio"
 	"github.com/google/oss-rebuild/pkg/registry/debian"
 	"github.com/google/oss-rebuild/pkg/registry/maven"
@@ -24,6 +25,7 @@ type RegistryMux struct {
 	Maven    maven.Registry
 	Debian   debian.Registry
 	RubyGems rubygems.Registry
+	Alpine   snapshot.Archive
 }
 
 // RegistryMuxWithCache returns a new RegistryMux with the provided cache wrapping each registry.
@@ -59,5 +61,8 @@ func RegistryMuxWithCache(registry RegistryMux, c cacheinternal.Cache) (Registry
 	} else {
 		return newmux, errors.New("unknown rubygems registry type")
 	}
+	// NOTE: Alpine reads are not cached. The upload table changes, and
+	// packages can be too large to hold in memory.
+	newmux.Alpine = registry.Alpine
 	return newmux, nil
 }
