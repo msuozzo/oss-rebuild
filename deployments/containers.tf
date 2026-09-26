@@ -75,7 +75,16 @@ locals {
       dockerfile = "build/package/Dockerfile.crates-registry"
       build_args = ["DEBUG=${terraform_data.debug.output}"]
     }
-    }, var.enable_network_analyzer ? {
+    }, var.enable_alpine_snapshots ? {
+    alpine-snapshots = {
+      dockerfile = "build/package/Dockerfile.alpine-snapshots"
+      build_args = [
+        "DEBUG=${terraform_data.debug.output}",
+        "BUILD_REPO=${var.repo}",
+        "BUILD_VERSION=${terraform_data.service_version.output}"
+      ]
+    }
+    } : {}, var.enable_network_analyzer ? {
     network-analyzer = {
       dockerfile = "build/package/Dockerfile.networkanalyzer"
       build_args = [
@@ -264,4 +273,12 @@ data "google_artifact_registry_docker_image" "system-subscriber" {
   repository_id = google_artifact_registry_repository.registry.repository_id
   image_name    = "system-subscriber:${module.service_images["system-subscriber"].image_version}"
   depends_on    = [module.service_images["system-subscriber"]]
+}
+
+data "google_artifact_registry_docker_image" "alpine-snapshots" {
+  count         = var.enable_alpine_snapshots ? 1 : 0
+  location      = google_artifact_registry_repository.registry.location
+  repository_id = google_artifact_registry_repository.registry.repository_id
+  image_name    = "alpine-snapshots:${module.service_images["alpine-snapshots"].image_version}"
+  depends_on    = [module.service_images["alpine-snapshots"]]
 }

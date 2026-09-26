@@ -132,3 +132,20 @@ variable "build_def_repo_dir" {
   description = "Directory within build_def_repo containing build definitions"
   default     = "definitions"
 }
+variable "enable_alpine_snapshots" {
+  type        = bool
+  description = "Whether to create the Alpine snapshot archive: a bucket of every Alpine index upload, package and build log (public when var.public), a private state bucket and the archiver. Requires enable_vpc. The buckets cannot be destroyed through Terraform once created."
+  default     = false
+}
+variable "alpine_snapshots_repositories" {
+  type        = list(string)
+  description = "Alpine repositories the snapshot archiver collects, as branch/repo/arch."
+  default = [
+    "v3.24/main/x86_64",
+    "v3.24/community/x86_64",
+    "v3.24/main/aarch64",
+    "v3.24/community/aarch64",
+    "edge/main/x86_64",
+    "edge/community/x86_64",
+  ]
+}

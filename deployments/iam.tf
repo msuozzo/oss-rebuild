@@ -69,6 +69,11 @@ resource "google_service_account" "cron" {
   account_id  = "cron-invoker" # NOTE: ID must be >=6 chars
   description = "Identity for Cloud Scheduler jobs triggering maintenance endpoints. Holds run.invoker only."
 }
+resource "google_service_account" "alpine-snapshots" {
+  count       = var.enable_alpine_snapshots ? 1 : 0
+  account_id  = "alpine-snapshots"
+  description = "Identity of the Alpine snapshot archiver."
+}
 data "google_storage_project_service_account" "attestation-pubsub-publisher" {
 }
 
@@ -484,6 +489,34 @@ resource "google_storage_bucket_iam_member" "builder-agent-writes-metadata" {
   member = google_service_account.builder-agent.member
 }
 
+## Alpine snapshot archiver
+
+resource "google_storage_bucket_iam_member" "alpine-snapshots-writes-archive" {
+  count  = var.enable_alpine_snapshots ? 1 : 0
+  bucket = google_storage_bucket.alpine-snapshots[0].name
+  role   = "roles/storage.objectAdmin"
+  member = google_service_account.alpine-snapshots[0].member
+}
+resource "google_storage_bucket_iam_member" "alpine-snapshots-writes-state" {
+  count  = var.enable_alpine_snapshots ? 1 : 0
+  bucket = google_storage_bucket.alpine-snapshots-state[0].name
+  role   = "roles/storage.objectAdmin"
+  member = google_service_account.alpine-snapshots[0].member
+}
+resource "google_artifact_registry_repository_iam_member" "alpine-snapshots-pulls-image" {
+  count      = var.enable_alpine_snapshots ? 1 : 0
+  location   = google_artifact_registry_repository.registry.location
+  repository = google_artifact_registry_repository.registry.name
+  role       = "roles/artifactregistry.reader"
+  member     = google_service_account.alpine-snapshots[0].member
+}
+resource "google_project_iam_member" "alpine-snapshots-writes-logs" {
+  count   = var.enable_alpine_snapshots ? 1 : 0
+  project = var.project
+  role    = "roles/logging.logWriter"
+  member  = google_service_account.alpine-snapshots[0].member
+}
+
 ## Public resources
 
 resource "google_kms_crypto_key_iam_member" "signing-key-is-public" {
@@ -519,6 +552,12 @@ resource "google_storage_bucket_iam_member" "network-analyzer-attestations-bucke
 resource "google_storage_bucket_iam_member" "system-analyzer-attestations-bucket-is-public" {
   count  = var.enable_system_analyzer && var.public ? 1 : 0
   bucket = google_storage_bucket.system-analyzer-attestations[0].name
+  role   = "roles/storage.objectViewer"
+  member = "allUsers"
+}
+resource "google_storage_bucket_iam_member" "alpine-snapshots-bucket-is-public" {
+  count  = var.enable_alpine_snapshots && var.public ? 1 : 0
+  bucket = google_storage_bucket.alpine-snapshots[0].name
   role   = "roles/storage.objectViewer"
   member = "allUsers"
 }

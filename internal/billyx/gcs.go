@@ -28,6 +28,10 @@ import (
 // or locks. Capabilities declares the supported subset. Unfortunately, billy
 // has no context plumbing, so all operations run under the context the
 // filesystem was constructed with.
+//
+// A write with O_EXCL creates only: it fails with fs.ErrExist, reported by
+// Close, if the object exists. Files open for writing implement
+// ObjectAttrsFile to set the object's metadata before the first Write.
 type GCS struct {
 	ctx    context.Context
 	client *storage.Client
@@ -85,7 +89,11 @@ func (f *GCS) OpenFile(filename string, flag int, _ os.FileMode) (billy.File, er
 		if flag&os.O_APPEND != 0 {
 			return nil, billy.ErrNotSupported
 		}
-		return &writeFile{name: filename, w: bucket.Object(object).NewWriter(f.ctx)}, nil
+		obj := bucket.Object(object)
+		if flag&os.O_EXCL != 0 {
+			obj = obj.If(storage.Conditions{DoesNotExist: true})
+		}
+		return &writeFile{name: filename, w: obj.NewWriter(f.ctx)}, nil
 	default:
 		// A file is readable or writable, never both.
 		return nil, billy.ErrNotSupported
@@ -303,15 +311,30 @@ func (r *readFile) Truncate(int64) error      { return billy.ErrNotSupported }
 func (r *readFile) Lock() error               { return billy.ErrNotSupported }
 func (r *readFile) Unlock() error             { return billy.ErrNotSupported }
 
+// ObjectAttrsFile is a file whose object metadata can be set.
+type ObjectAttrsFile interface {
+	ObjectAttrs() *storage.ObjectAttrs
+}
+
 // writeFile streams one object write, committed by Close.
 type writeFile struct {
 	name string
 	w    *storage.Writer
 }
 
-func (w *writeFile) Name() string                { return w.name }
-func (w *writeFile) Write(p []byte) (int, error) { return w.w.Write(p) }
-func (w *writeFile) Close() error                { return w.w.Close() }
+var _ ObjectAttrsFile = (*writeFile)(nil)
+
+func (w *writeFile) Name() string                      { return w.name }
+func (w *writeFile) Write(p []byte) (int, error)       { return w.w.Write(p) }
+func (w *writeFile) ObjectAttrs() *storage.ObjectAttrs { return &w.w.ObjectAttrs }
+
+func (w *writeFile) Close() error {
+	err := w.w.Close()
+	if hasStatus(err, http.StatusPreconditionFailed) {
+		return &os.PathError{Op: "close", Path: w.name, Err: fs.ErrExist}
+	}
+	return err
+}
 
 func (w *writeFile) Read([]byte) (int, error)          { return 0, billy.ErrNotSupported }
 func (w *writeFile) ReadAt([]byte, int64) (int, error) { return 0, billy.ErrNotSupported }

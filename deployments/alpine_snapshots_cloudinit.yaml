@@ -1,0 +1,50 @@
+#cloud-config
+# Copyright 2026 Google LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# COS Alpine snapshot archiver init: Writes and starts a systemd unit that
+# runs the archiver container. Reruns every boot as /etc on COS is stateless.
+# The archiver restores its database from the state bucket on every start.
+# NOTE: "#cloud-config" must remain the first line.
+#
+# Template parameters:
+#   registry: Artifact Registry host serving the image
+#   image: Archiver image ref
+#   args: Archiver flags
+
+write_files:
+  - path: /etc/systemd/system/alpine-snapshots.service
+    permissions: "0644"
+    owner: root
+    content: |
+      [Unit]
+      Description=Alpine snapshot archiver
+      Wants=docker.service
+      After=docker.service
+      StartLimitIntervalSec=0
+
+      [Service]
+      # docker-credential-gcr writes its config below HOME, which must be
+      # writable. See https://cloud.google.com/container-optimized-os/docs/how-to/run-container-instance.
+      Environment=HOME=/home/cloudservice
+      ExecStartPre=/usr/bin/docker-credential-gcr configure-docker --registries ${registry}
+      # Ensure a previous attempt didn't leave our container name claimed.
+      ExecStartPre=-/usr/bin/docker rm -f alpine-snapshots
+      # The database and packages in flight live on the boot disk under
+      # /var/lib, which COS keeps writable.
+      ExecStart=/usr/bin/docker run --rm --name=alpine-snapshots \
+          --network=host \
+          -v /var/lib/alpine-snapshots:/var/lib/alpine-snapshots \
+          ${image} ${args}
+      # The archiver writes a last database backup on SIGTERM, bounded at 90s.
+      ExecStop=/usr/bin/docker stop -t 120 alpine-snapshots
+      TimeoutStopSec=150
+      Restart=always
+      RestartSec=10
+
+runcmd:
+  # NOTE: COS's host firewall drops inbound traffic by default. Open only the
+  # health check port reflecting the alpine-snapshots-health-check VPC rule.
+  - iptables -w -A INPUT -p tcp --dport 8080 -j ACCEPT
+  - systemctl daemon-reload
+  - systemctl start --no-block alpine-snapshots.service

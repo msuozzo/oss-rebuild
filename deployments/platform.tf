@@ -144,6 +144,32 @@ resource "google_storage_bucket" "scratch-output" {
   # TODO: Consider an age-based lifecycle rule once we have a feel for realistic retention needs.
 }
 
+# The published Alpine snapshot archive. See pkg/registry/alpine/snapshot.
+resource "google_storage_bucket" "alpine-snapshots" {
+  count                       = var.enable_alpine_snapshots ? 1 : 0
+  name                        = "${var.host}-rebuild-alpine-snapshots"
+  location                    = "us-central1"
+  storage_class               = "STANDARD"
+  uniform_bucket_level_access = true
+  depends_on                  = [google_project_service.storage]
+  # The archive holds packages the mirrors have since deleted.
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+# The Alpine snapshot archiver's private state, its database backups. Kept
+# apart from the archive, which may be public.
+resource "google_storage_bucket" "alpine-snapshots-state" {
+  count                       = var.enable_alpine_snapshots ? 1 : 0
+  name                        = "${var.host}-rebuild-alpine-snapshots-state"
+  location                    = "us-central1"
+  storage_class               = "STANDARD"
+  uniform_bucket_level_access = true
+  depends_on                  = [google_project_service.storage]
+  lifecycle {
+    prevent_destroy = true
+  }
+}
 resource "google_storage_bucket" "analytics" {
   name                        = "${var.host}-rebuild-analytics"
   location                    = "us-central1"
@@ -537,6 +563,21 @@ resource "google_compute_firewall" "scratch-worker-ingress" {
   }
   source_ranges = [google_compute_subnetwork.subnet[0].ip_cidr_range]
   target_tags   = ["scratch"]
+}
+
+# Alpine snapshot archiver: reachable on its health check port only from
+# Google Cloud's health check probers. See
+# https://cloud.google.com/load-balancing/docs/health-check-concepts#ip-ranges
+resource "google_compute_firewall" "alpine-snapshots-health-check" {
+  count   = var.enable_alpine_snapshots ? 1 : 0
+  name    = "${var.host}-alpine-snapshots-health-check"
+  network = google_compute_network.vpc[0].name
+  allow {
+    protocol = "tcp"
+    ports    = ["8080"]
+  }
+  source_ranges = ["35.191.0.0/16", "130.211.0.0/22"]
+  target_tags   = ["alpine-snapshots"]
 }
 
 resource "google_project_service" "cloudscheduler" {

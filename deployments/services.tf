@@ -103,6 +103,95 @@ resource "google_compute_instance_template" "scratch-standard" {
   }
 }
 
+# The Alpine snapshot archiver: one instance, recreated when its health
+# check fails. It restores its database from the state bucket on start, so
+# an instance holds nothing a replacement cannot rebuild.
+resource "google_compute_instance_template" "alpine-snapshots" {
+  count        = var.enable_alpine_snapshots ? 1 : 0
+  name_prefix  = "${var.host}-alpine-snapshots-"
+  machine_type = "e2-medium"
+  region       = "us-central1"
+
+  service_account {
+    email  = google_service_account.alpine-snapshots[0].email
+    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+  }
+
+  disk {
+    source_image = "cos-cloud/cos-stable"
+    auto_delete  = true
+    boot         = true
+    # Packages in flight reach 1.4 GB each, one per download worker.
+    disk_size_gb = 50
+    disk_type    = "pd-balanced"
+  }
+
+  network_interface {
+    network    = google_compute_network.vpc[0].name
+    subnetwork = google_compute_subnetwork.subnet[0].name
+  }
+
+  tags   = ["alpine-snapshots"]
+  labels = { purpose = "alpine-snapshots" }
+
+  metadata = {
+    google-logging-enabled = "true"
+    user-data = templatefile("${path.module}/alpine_snapshots_cloudinit.yaml", {
+      registry = "${google_artifact_registry_repository.registry.location}-docker.pkg.dev"
+      image    = data.google_artifact_registry_docker_image.alpine-snapshots[0].self_link
+      args = join(" ", [
+        "--public=gs://${google_storage_bucket.alpine-snapshots[0].name}",
+        "--state=gs://${google_storage_bucket.alpine-snapshots-state[0].name}",
+        "--repositories=${join(",", var.alpine_snapshots_repositories)}",
+      ])
+    })
+  }
+
+  lifecycle {
+    create_before_destroy = true
+    precondition {
+      condition     = var.enable_vpc
+      error_message = "enable_alpine_snapshots requires enable_vpc: the archiver has no external IP and reaches Alpine through the VPC's NAT."
+    }
+  }
+}
+resource "google_compute_health_check" "alpine-snapshots" {
+  count               = var.enable_alpine_snapshots ? 1 : 0
+  name                = "${var.host}-alpine-snapshots"
+  check_interval_sec  = 30
+  timeout_sec         = 10
+  healthy_threshold   = 1
+  unhealthy_threshold = 4
+  http_health_check {
+    port         = 8080
+    request_path = "/healthz"
+  }
+}
+resource "google_compute_instance_group_manager" "alpine-snapshots" {
+  count              = var.enable_alpine_snapshots ? 1 : 0
+  name               = "${var.host}-alpine-snapshots"
+  zone               = "us-central1-a"
+  base_instance_name = "${var.host}-alpine-snapshots"
+  target_size        = 1
+  version {
+    instance_template = google_compute_instance_template.alpine-snapshots[0].self_link_unique
+  }
+  auto_healing_policies {
+    health_check = google_compute_health_check.alpine-snapshots[0].id
+    # Covers boot, the image pull and the database restore.
+    initial_delay_sec = 600
+  }
+  # Replace the instance in place when the template changes, never running
+  # a second archiver next to it. The archiver's claim covers other overlaps.
+  update_policy {
+    type                  = "PROACTIVE"
+    minimal_action        = "REPLACE"
+    replacement_method    = "RECREATE"
+    max_surge_fixed       = 0
+    max_unavailable_fixed = 1
+  }
+}
+
 resource "google_project_service" "run" {
   service = "run.googleapis.com"
 }
