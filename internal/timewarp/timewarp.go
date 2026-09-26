@@ -10,6 +10,11 @@
 // When run on a local port, an example invocation for NPM would be:
 //
 //	npm --registry "http://npm:2015-05-13T10:31:26.370Z@localhost:8081" install
+//
+// and an apk repository line for Alpine, served from a snapshot archive in
+// a GCS bucket, would be:
+//
+//	http://alpine:2026-09-25T15:21:11Z@localhost:8081/<bucket>/v3.24/main
 package timewarp
 
 import (
@@ -110,6 +115,7 @@ func (h Handler) handleRequest(rw http.ResponseWriter, r *http.Request) error {
 	case "rubygems":
 		r.URL.Host = rubygemsRegistry.Host
 		r.URL.Scheme = rubygemsRegistry.Scheme
+	case "alpine":
 	// TODO: We should add cargogit which serves the repo from a given set of packages. This is built into go-git v6.
 	case "cargogitarchive":
 		return h.handleCargoGitArchive(rw, r, ts)
@@ -135,6 +141,8 @@ func (h Handler) handleRequest(rw http.ResponseWriter, r *http.Request) error {
 		return h.handlePyPI(rw, r, t)
 	case "rubygems":
 		return h.handleRubyGems(rw, r, t)
+	case "alpine":
+		return h.handleAlpine(rw, r, t)
 	default:
 		return herror{errors.New("unsupported platform"), http.StatusBadRequest}
 	}

@@ -17,6 +17,8 @@ specified point in time. Currently supported registries:
 
 - NPM (https://registry.npmjs.org/)
 - PyPI (https://pypi.org/)
+- Alpine, from a snapshot archive in a GCS bucket (see
+  `pkg/registry/alpine/snapshot`)
 
 ## Installation
 
@@ -72,6 +74,24 @@ export PIP_INDEX_URL="http://pypi:2013-12-23T07:45:10.417Z@localhost:8081/simple
 pip install requests
 ```
 
+### Using with apk/Alpine
+
+Alpine mirrors keep only the newest packages, so Timewarp serves Alpine
+repositories from a snapshot archive (see `cmd/alpine-snapshots`) held in a
+GCS bucket, named as the first path element:
+
+```bash
+cat > /etc/apk/repositories <<EOF
+http://alpine:2026-09-25T17:00:00Z@localhost:8081/my-archive-bucket/v3.24/main
+http://alpine:2026-09-25T17:00:00Z@localhost:8081/my-archive-bucket/v3.24/community
+EOF
+apk update
+```
+
+Each repository's index is the newest upload at or before the given time.
+Packages are served unchanged, and apk verifies the indexes with Alpine's
+signing keys and each package against its index.
+
 ### Using with curl
 
 You can also use curl to directly query the timewarp service:
@@ -90,6 +110,8 @@ Timewarp uses the HTTP Basic Authentication mechanism to pass both the platform
 type and target timestamp. The username field specifies the registry type (`npm`
 or `pypi`), and the password field contains the RFC3339 timestamp for the
 desired point in time.
+
+For Alpine, the username is `alpine` and the password is the timestamp.
 
 When a request comes in, Timewarp:
 
