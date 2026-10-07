@@ -92,6 +92,10 @@ Each repository's index is the newest upload at or before the given time.
 Packages are served unchanged, and apk verifies the indexes with Alpine's
 signing keys and each package against its index.
 
+An archive in a private bucket is read with application default
+credentials when Timewarp runs with `--gcs-auth`. It then serves on
+127.0.0.1 only.
+
 ### Using with curl
 
 You can also use curl to directly query the timewarp service:

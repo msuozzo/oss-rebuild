@@ -18,6 +18,7 @@ import (
 	"github.com/google/oss-rebuild/pkg/rebuild/meta"
 	"github.com/google/oss-rebuild/pkg/rebuild/rebuild"
 	"github.com/google/oss-rebuild/pkg/rebuild/schema"
+	"github.com/google/oss-rebuild/pkg/registry/alpine/snapshot"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 )
@@ -53,7 +54,8 @@ type InferDeps struct {
 	GitCache           *gitcache.Client
 	RepoOptF           func() *gitx.RepositoryOptions
 	CratesRegistryStub api.StubFn[cratesregistryservice.FindRegistryCommitRequest, cratesregistryservice.FindRegistryCommitResponse]
-	RepoMetrics        db.RepoMetrics // optional. when nil, repos are not measured on clone
+	RepoMetrics        db.RepoMetrics    // optional. when nil, repos are not measured on clone
+	AlpineArchive      *snapshot.Archive // optional. when nil, the archive OSS Rebuild publishes
 }
 
 // recordRepoMetrics measures rcfg and upserts its repo_metrics record keyed
@@ -111,6 +113,9 @@ func Infer(ctx context.Context, req schema.InferenceRequest, deps *InferDeps) (*
 		ctx = context.WithValue(ctx, rebuild.CratesRegistryStubID, deps.CratesRegistryStub)
 	}
 	mux := meta.NewRegistryMux(deps.HTTPClient)
+	if deps.AlpineArchive != nil {
+		mux.Alpine = *deps.AlpineArchive
+	}
 	var s rebuild.Strategy
 	t := rebuild.Target{
 		Ecosystem: req.Ecosystem,

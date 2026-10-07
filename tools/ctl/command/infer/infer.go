@@ -33,6 +33,7 @@ import (
 	"github.com/google/oss-rebuild/pkg/rebuild/meta"
 	"github.com/google/oss-rebuild/pkg/rebuild/rebuild"
 	"github.com/google/oss-rebuild/pkg/rebuild/schema"
+	"github.com/google/oss-rebuild/pkg/registry/alpine/snapshot"
 	"github.com/google/oss-rebuild/pkg/registry/cratesio/index"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -54,6 +55,7 @@ type Config struct {
 	BootstrapVersion string
 	GitCacheURL      string
 	MemoryLimit      string
+	AlpineArchive    string
 }
 
 // Validate ensures the configuration is valid.
@@ -69,6 +71,9 @@ func (c Config) Validate() error {
 	}
 	if c.API != "" && c.GitCacheURL != "" {
 		return errors.New("git-cache-url is not supported when using a remote API")
+	}
+	if c.API != "" && c.AlpineArchive != "" {
+		return errors.New("alpine-archive is not supported when using a remote API")
 	}
 	return nil
 }
@@ -212,6 +217,13 @@ func Handler(ctx context.Context, cfg Config, deps *Deps) (*act.NoOutput, error)
 			}
 			deps.GitCache = &gitcache.Client{IDClient: idClient, APIClient: apiClient, URL: u}
 		}
+		if cfg.AlpineArchive != "" {
+			c, err := gcsx.NewReadAuthClient(ctx, http.DefaultClient)
+			if err != nil {
+				return nil, errors.Wrap(err, "creating archive client")
+			}
+			deps.AlpineArchive = new(snapshot.GCSArchive(c, cfg.AlpineArchive))
+		}
 		stub = api.Local(inferenceservice.Infer, deps)
 	}
 	resp, err := stub(ctx, req)
@@ -347,5 +359,6 @@ func flagSet(name string, cfg *Config) *flag.FlagSet {
 	set.StringVar(&cfg.BootstrapVersion, "bootstrap-version", "", "the version of bootstrap tools to use")
 	set.StringVar(&cfg.GitCacheURL, "git-cache-url", "", "if provided, the git-cache service to use to fetch repos")
 	set.StringVar(&cfg.MemoryLimit, "memory", "", "soft cap on this process's resident memory (e.g. 20g, 8192m). Implemented via Go's runtime/debug.SetMemoryLimit; lets the GC throttle before huge in-memory git clones (memory.NewStorage) take down the host.")
+	set.StringVar(&cfg.AlpineArchive, "alpine-archive", "", "the gcs bucket of the Alpine snapshot archive to infer from, read with application default credentials")
 	return set
 }
